@@ -1,0 +1,9 @@
+filebeat.inputs: 
+- type: log 
+  enabled: true 
+  paths: 
+    - logs/mysqlservice.log.json 
+  json.keys_under_root: true 
+  json.overwrite_keys: true
+output.elasticsearch:
+  hosts: ["https://elasticsearch:9200"]

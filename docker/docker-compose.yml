@@ -1,0 +1,95 @@
+version: '3'
+
+services:
+  user-microservice:
+    image: apm-java/app:1.0.0
+    build:
+      context: ../
+      dockerfile: docker/java/Dockerfile
+      args:
+        - "JAR_PATH=target/apm-0.0.1-SNAPSHOT.jar"
+    environment:
+      - "JAR_NAME=apm-0.0.1-SNAPSHOT.jar"
+      - "JVM_OPTIONS="
+      - "ELASTIC_APM_SERVICE_NAME=user-service"
+      - "ELASTIC_APM_ENABLE_LOG_CORRELATION=true"
+      - "ELASTIC_APM_APPLICATION_PACKAGES=com.dsubires.pocs.apm"
+      - "ELASTIC_APM_SERVER_URLS=http://apm:8200"
+    ports:
+      - 8080:8080
+    links:
+      - apm
+      - mysql
+      - elasticsearch
+  kibana:
+    image: kibana:6.5.2
+    environment:
+      - "LOGGING_QUIET=true"
+    links:
+      - elasticsearch
+    ports:
+      - 5601:5601
+
+  filebeat:
+    hostname: filebeat
+    image: docker-logs-elk/filebeat:1.0.0
+    build:
+      context: filebeat
+      dockerfile: Dockerfile
+    volumes:
+      # needed to access all docker logs (read only) :
+      - "/var/lib/docker/containers:/opt/app/logs/mysqlservice.log.json:ro"
+      # needed to access additional informations about containers
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    links:
+      - logstash
+      - user-microservice
+  logstash:
+    hostname: logstash
+    image: docker-logs-elk/logstash:1.0.0
+    build:
+      context: logstash
+      dockerfile: Dockerfile
+    ports:
+      - 5044:5044
+    environment:
+      LOG_LEVEL: error
+    links:
+      - elasticsearch
+
+  elasticsearch:
+    image: apm-java/elasticsearch:1.0.0
+    build:
+      context: elasticsearch
+      dockerfile: Dockerfile
+    environment:
+      - cluster.name=apm-java
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms256m -Xmx256m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - 9200:9200
+
+  apm:
+    image: apm-java/apm-server:1.0.0
+    build:
+      context: apm-server
+      dockerfile: Dockerfile
+    ports:
+      - 8200:8200
+    links:
+      - elasticsearch
+      - kibana
+  mysql:
+    image: mysql:8.0.13
+    command: --default-authentication-plugin=mysql_native_password
+    ports:
+      - 3306:3306
+    environment:
+      MYSQL_ROOT_PASSWORD: qazxsw
+      MYSQL_DATABASE: users
+      MYSQL_USER: app
+      MYSQL_PASSWORD: ecvbjkl9876t
